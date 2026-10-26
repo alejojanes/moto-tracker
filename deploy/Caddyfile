@@ -1,0 +1,17 @@
+# HTTPS automático con Let's Encrypt.
+# Sin dominio propio sirve sslip.io: 203-0-113-10.sslip.io apunta a la IP 203.0.113.10.
+
+{$APP_DOMAIN} {
+	encode gzip
+	# El webhook de Traccar solo se usa dentro de Docker: nunca se expone a internet.
+	respond /ingest/* 404
+	reverse_proxy backend:8080 {
+		# Deja pasar los eventos en vivo (SSE) sin búfer.
+		flush_interval -1
+	}
+}
+
+{$TRACCAR_DOMAIN} {
+	encode gzip
+	reverse_proxy traccar:8082
+}

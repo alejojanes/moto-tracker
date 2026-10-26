@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mi moto · Ingresar</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="login">
+  <form id="login" class="card" autocomplete="on">
+    <h1>Mi moto</h1>
+    <label>Usuario <input name="username" autocomplete="username" required></label>
+    <label>Contraseña <input name="password" type="password" autocomplete="current-password" required></label>
+    <label class="check"><input name="remember-me" type="checkbox" checked> Mantener la sesión en este equipo</label>
+    <button type="submit">Ingresar</button>
+    <p id="error" class="error" hidden>Usuario o contraseña incorrectos.</p>
+  </form>
+  <script src="/js/login.js"></script>
+</body>
+</html>

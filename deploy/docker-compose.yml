@@ -1,0 +1,87 @@
+# Sistema completo: PostgreSQL/PostGIS + Traccar + backend + Caddy (HTTPS automático).
+# Uso en el VPS: cp .env.example .env && editar .env && docker compose up -d --build
+name: moto-tracker
+
+services:
+  db:
+    image: postgis/postgis:17-3.5-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TRACCAR_DB_PASSWORD: ${TRACCAR_DB_PASSWORD}
+      TRACKER_DB_PASSWORD: ${TRACKER_DB_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db/20-databases.sh:/docker-entrypoint-initdb.d/20-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  traccar:
+    image: traccar/traccar:6.16
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      CONFIG_USE_ENVIRONMENT_VARIABLES: "true"
+      DATABASE_DRIVER: org.postgresql.Driver
+      DATABASE_URL: jdbc:postgresql://db:5432/traccar
+      DATABASE_USER: traccar
+      DATABASE_PASSWORD: ${TRACCAR_DB_PASSWORD}
+      # Reenvía cada posición y cada evento al backend (dentro de la red de Docker).
+      FORWARD_TYPE: json
+      FORWARD_URL: http://backend:8080/ingest/traccar/positions?token=${TRACKER_WEBHOOK_TOKEN}
+      FORWARD_RETRY_ENABLE: "true"
+      EVENT_FORWARD_URL: http://backend:8080/ingest/traccar/events?token=${TRACKER_WEBHOOK_TOKEN}
+      FILTER_ENABLE: "true"
+      FILTER_ZERO: "true"
+      FILTER_DUPLICATE: "true"
+    volumes:
+      - traccar-logs:/opt/traccar/logs
+    ports:
+      # Único puerto público de Traccar: el del protocolo GT06 (Concox/Jimi).
+      - "5023:5023"
+
+  backend:
+    build:
+      context: ..
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TRACKER_DB_URL: jdbc:postgresql://db:5432/tracker
+      TRACKER_DB_USER: tracker
+      TRACKER_DB_PASSWORD: ${TRACKER_DB_PASSWORD}
+      TRACKER_USERNAME: ${TRACKER_USERNAME}
+      TRACKER_PASSWORD: ${TRACKER_PASSWORD}
+      TRACKER_REMEMBER_ME_KEY: ${TRACKER_REMEMBER_ME_KEY}
+      TRACKER_WEBHOOK_TOKEN: ${TRACKER_WEBHOOK_TOKEN}
+      TRACKER_TELEGRAM_BOT_TOKEN: ${TRACKER_TELEGRAM_BOT_TOKEN:-}
+      TRACKER_TELEGRAM_CHAT_ID: ${TRACKER_TELEGRAM_CHAT_ID:-}
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - traccar
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      TRACCAR_DOMAIN: ${TRACCAR_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  db-data:
+  traccar-logs:
+  caddy-data:
+  caddy-config:
